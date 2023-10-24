@@ -1,119 +1,60 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.18;
 
-contract DegenGamingToken {
-    string public name;
-    string public symbol;
-    uint8 public decimals;
-    uint256 public totalSupply;
-    address public owner;
+import "@openzeppelin/contracts@4.9.0/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts@4.9.0/access/Ownable.sol";
+import "@openzeppelin/contracts@4.9.0/token/ERC20/extensions/ERC20Burnable.sol";
+import "hardhat/console.sol";
 
-    mapping(address => uint256) private balances;
-    mapping(address => mapping(address => uint256)) private allowances;
-    mapping(address => bool) private isAdmin;
-    mapping(address => uint256) private rewards;
-    // like a watch on spending limit by current owner 
+contract CustomToken is ERC20, Ownable, ERC20Burnable {
+    event LogMessage(string message);
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    event RewardAdded(address indexed admin, uint256 amount);
-    event RewardClaimed(address indexed player, uint256 amount);
+    mapping(address => uint256) public redeemed;
 
-    //  it creates a log entry on the blockchain.
-    // help to track when and where token is used by an external user 
+    constructor() ERC20("DEGEN", "DGN") {}
 
-    constructor() {
-        name = "Degen Token";
-        symbol = "DGN";
-        decimals = 18;
-        totalSupply = 0;
-        owner = msg.sender;
+    function mint(address account, uint256 amount) public onlyOwner {
+        _mint(account, amount);
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only the contract owner can perform this action");
-        _;
+    function Burn(uint256 amount) external {
+        require(balanceOf(msg.sender) >= amount, "INSUFFICIENT FUNDS!!");
+        _burn(msg.sender, amount);
+        emit LogMessage("burned tokens");
     }
 
-    function mint(address account, uint256 amount) external onlyOwner {
-        require(account != address(0), "Invalid address");
-        require(amount > 0, "Invalid amount");
-
-        balances[account] += amount;
-        totalSupply += amount;
-
-        emit Transfer(address(0), account, amount);
+    function transferTokens(address recipient, uint256 amount) external {
+        require(balanceOf(msg.sender) >= amount, "INSUFFICIENT FUNDS!!");
+        approve(msg.sender, amount);
+        transferFrom(msg.sender, recipient, amount);
     }
 
-    function transfer(address recipient, uint256 amount) external returns (bool) {
-        require(recipient != address(0), "Invalid address");
-        require(amount > 0, "Invalid amount");
-        require(amount <= balances[msg.sender], "Insufficient balance");
+    function redeem(uint256 itemNumber) external payable {
+        uint256 tokens;
 
-        balances[msg.sender] -= amount;
-        balances[recipient] += amount;
+        if (itemNumber == 1) {
+            tokens = 1000; // Redeem iPhone for 1000 tokens
+        } else if (itemNumber == 2) {
+            tokens = 800; // Redeem Samsung for 800 tokens
+        } else if (itemNumber == 3) {
+            tokens = 1200; // Redeem Bike for 1200 tokens
+        } else if (itemNumber == 4) {
+            tokens = 2000; // Redeem Car for 2000 tokens
+        } else {
+            revert("Invalid item");
+        }
 
-        emit Transfer(msg.sender, recipient, amount);
-        return true;
+        require(balanceOf(msg.sender) >= tokens, "INSUFFICIENT FUNDS!!");
+        _burn(msg.sender, tokens);
+        redeemed[msg.sender]++;
+        emit LogMessage("Redeemed item");
     }
 
-    function approve(address spender, uint256 amount) external returns (bool) {
-        require(spender != address(0), "Invalid address");
-
-        allowances[msg.sender][spender] = amount;
-
-        emit Approval(msg.sender, spender, amount);
-        return true;
+    function balance() external view returns (uint256) {
+        return balanceOf(msg.sender);
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool) {
-        require(sender != address(0), "Invalid address");
-        require(recipient != address(0), "Invalid address");
-        require(amount > 0, "Invalid amount");
-        require(amount <= balances[sender], "Insufficient balance");
-        require(amount <= allowances[sender][msg.sender], "Insufficient allowance");
-
-        balances[sender] -= amount;
-        balances[recipient] += amount;
-        allowances[sender][msg.sender] -= amount;
-
-        emit Transfer(sender, recipient, amount);
-        return true;
+    function redeemedItemsCount(address account) public view returns (uint256) {
+        return redeemed[account];
     }
-
-    function burn(uint256 amount) external {
-        require(amount > 0, "Invalid amount");
-        require(amount <= balances[msg.sender], "Insufficient balance");
-
-        balances[msg.sender] -= amount;
-        totalSupply -= amount;
-
-        emit Transfer(msg.sender, address(0), amount);
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    function claimReward() external returns (uint256) {
-    uint256 amount = rewards[msg.sender];
-    require(amount > 0, "No rewards to claim");
-
-    rewards[msg.sender] = 0;
-    emit RewardClaimed(msg.sender, amount);
-
-    return amount;
-}
-
-    function InGamePurchase(uint256 amount) external {
-    require(amount > 0, "Invalid amount");
-    require(amount <= balances[msg.sender], "Insufficient balance");
-    
-
-    balances[msg.sender] -= amount;
-    totalSupply -= amount;
-
-    emit Transfer(msg.sender, address(0), amount);
-}
-
 }
